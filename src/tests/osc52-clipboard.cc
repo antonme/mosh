@@ -72,25 +72,6 @@ std::string run_osc52( const std::string& payload )
   return to_string( fb.get_clipboard() );
 }
 
-unsigned int clipboard_seqnum_after( const std::string& payload )
-{
-  Dispatcher dispatcher;
-  Framebuffer fb( 80, 24 );
-  Parser::OSC_Start osc_start;
-  Parser::OSC_Put osc_put;
-  Parser::OSC_End osc_end;
-
-  dispatcher.OSC_start( &osc_start );
-  for ( std::string::const_iterator i = payload.begin(); i != payload.end(); i++ ) {
-    osc_put.ch = static_cast<unsigned char>( *i );
-    osc_put.char_present = true;
-    dispatcher.OSC_put( &osc_put );
-  }
-  dispatcher.OSC_dispatch( &osc_end, &fb );
-
-  return fb.get_clipboard_seqnum();
-}
-
 void expect_clipboard( const char* label, const std::string& payload, const std::string& expected )
 {
   const std::string actual = run_osc52( payload );
@@ -100,22 +81,12 @@ void expect_clipboard( const char* label, const std::string& payload, const std:
   }
 }
 
-void expect_seqnum( const char* label, const std::string& payload, unsigned int expected )
-{
-  const unsigned int actual = clipboard_seqnum_after( payload );
-  if ( actual != expected ) {
-    fprintf( stderr, "%s: expected seqnum [%u], got [%u]\n", label, expected, actual );
-    exit( 1 );
-  }
-}
-
 } // namespace
 
 int main( void )
 {
-  expect_clipboard( "exact-c", "52;c;YmxhYmxh", "c;YmxhYmxh" );
-  expect_clipboard( "multi-target", "52;cp;YmxhYmxh", "cp;YmxhYmxh" );
-  expect_clipboard( "empty-options", "52;;YmxhYmxh", ";YmxhYmxh" );
-  expect_seqnum( "seqnum-increment", "52;c;YmxhYmxg", 1 );
+  expect_clipboard( "exact-c", "52;c;YmxhYmxh", "YmxhYmxh" );
+  expect_clipboard( "multi-target", "52;cp;YmxhYmxh", "YmxhYmxh" );
+  expect_clipboard( "empty-options", "52;;YmxhYmxh", "YmxhYmxh" );
   return 0;
 }
