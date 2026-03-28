@@ -626,21 +626,11 @@ static void OSC_8( const std::string& OSC_string, Framebuffer* fb )
 /* xterm uses an Operating System Command to set the window title */
 void Dispatcher::OSC_dispatch( const Parser::OSC_End* act __attribute( ( unused ) ), Framebuffer* fb )
 {
-  /*
-   * Handle OSC 52 clipboard updates and variants. tmux and other multiplexers
-   * may emit additional clipboard option characters before the final ';'.
-   */
-  if ( OSC_string.size() >= 4 && OSC_string[0] == L'5' && OSC_string[1] == L'2' && OSC_string[2] == L';' ) {
-    size_t option_end = std::min<size_t>( 64, OSC_string.size() - 1 );
-    while ( option_end > 2 && OSC_string[option_end] != L';' ) {
-      option_end--;
-    }
-
-    if ( OSC_string[option_end] == L';' ) {
-      Terminal::Framebuffer::title_type clipboard( OSC_string.begin() + option_end + 1, OSC_string.end() );
-      fb->set_clipboard( clipboard );
-      return;
-    }
+  /* handle osc copy clipboard sequence 52;c; */
+  if ( OSC_string.size() >= 5 && OSC_string[0] == L'5' && OSC_string[1] == L'2' && OSC_string[2] == L';'
+       && OSC_string[3] == L'c' && OSC_string[4] == L';' ) {
+    Terminal::Framebuffer::title_type clipboard( OSC_string.begin() + 5, OSC_string.end() );
+    fb->set_clipboard( clipboard );
     /* handle osc terminal title sequence */
   } else if ( OSC_string.size() >= 1 ) {
     long cmd_num = -1;

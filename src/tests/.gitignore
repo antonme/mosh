@@ -5,7 +5,6 @@
 /nonce-incr
 /inpty
 /is-utf8-locale
-/osc52-clipboard
 /*.d/
 *.log
 *.trs
