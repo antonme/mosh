@@ -5,7 +5,6 @@ upstream `mosh`. The current fork release line also carries:
 
 - ECMA-48 `SGR 2` (`faint` / `dim`) support
 - ECMA-48 `SGR 9` (`strikethrough`) support
-- tmux-compatible `OSC 52` clipboard handling over `mosh`
 - SSH agent forwarding support, integrated from
   `mobile-shell/mosh#1297`
 
@@ -29,11 +28,9 @@ Related tags in this fork:
 
 This fork started as a way to carry terminal-emulation changes that were useful
 in day-to-day use but were not available in an upstream release. Over time it
-also accumulated a few practical downstream fixes and features that were useful
-to ship together:
+also accumulated another feature that was useful to ship together:
 
 - terminal attribute support that upstream still does not ship in a release
-- clipboard behavior that works better with tmux
 - agent forwarding support for users who want that tradeoff
 
 The fork should now be understood as a maintained downstream variant of `mosh`,
