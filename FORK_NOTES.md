@@ -8,33 +8,6 @@ upstream `mosh`. The current fork release line also carries:
 - SSH agent forwarding support, integrated from
   `mobile-shell/mosh#1297`
 
-## Current Release Line
-
-The current tagged fork release is `v1.4.0-fork5`.
-
-Related tags in this fork:
-
-- `v1.4.0-dim1` through `v1.4.0-dim4`: earlier fork-only release line
-- `v1.4.0-fork5`: current release line with the terminal patches plus
-  agent forwarding
-
-## Branches
-
-- `master`: current fork integration branch and release branch
-- `dim-strikethrough-support`: historical development branch for the terminal
-  attribute work
-
-## Why This Fork Exists
-
-This fork started as a way to carry terminal-emulation changes that were useful
-in day-to-day use but were not available in an upstream release. Over time it
-also accumulated another feature that was useful to ship together:
-
-- terminal attribute support that upstream still does not ship in a release
-- agent forwarding support for users who want that tradeoff
-
-The fork should now be understood as a maintained downstream variant of `mosh`,
-not as a tiny patch queue.
 
 ## Build Notes For macOS
 
