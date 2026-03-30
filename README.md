@@ -3,14 +3,6 @@
 Mosh: the mobile shell
 ======================
 
-Fork note
----------
-
-This fork carries a small terminal-emulation patch for ECMA-48
-`SGR 2` (`faint`/`dim`) and `SGR 9` (`strikethrough`) support.
-The fork delta is intentionally kept small; see `FORK_NOTES.md` for
-details, rationale, and macOS build notes.
-
 Mosh is a remote terminal application that supports intermittent
 connectivity, allows roaming, and provides speculative local echo
 and line editing of user keystrokes.
@@ -220,3 +212,8 @@ More info
   * `#mosh` channel on [Libera Chat](https://libera.chat/)
 
     https://web.libera.chat/#mosh
+
+Fork-specific notes
+-------------------
+
+This fork has release-specific notes in `FORK_NOTES.md`.

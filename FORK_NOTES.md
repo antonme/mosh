@@ -1,29 +1,45 @@
 # Fork Notes
 
-This fork exists to carry a minimal terminal-emulation patch that adds:
+This repository is no longer just a minimal dim/strikethrough patch on top of
+upstream `mosh`. The current fork release line also carries:
 
-- ECMA-48 `SGR 2` (`faint` / `dim`)
-- ECMA-48 `SGR 9` (`strikethrough`)
+- ECMA-48 `SGR 2` (`faint` / `dim`) support
+- ECMA-48 `SGR 9` (`strikethrough`) support
+- tmux-compatible `OSC 52` clipboard handling over `mosh`
+- SSH agent forwarding support, integrated from
+  `mobile-shell/mosh#1297`
 
-Why this fork exists
---------------------
+## Current Release Line
 
-Upstream `mosh` currently has an open issue for `SGR 2` support and an
-unmerged PR for `faint`/`strikethrough` support. The change itself is
-small, but the upstream PR is stale and no clean upstream release
-currently includes it.
+The current tagged fork release is `v1.4.0-fork5`.
 
-This fork keeps the patch minimal so it is easy to rebase onto upstream.
+Related tags in this fork:
 
-Files changed
--------------
+- `v1.4.0-dim1` through `v1.4.0-dim4`: earlier fork-only release line
+- `v1.4.0-fork5`: current release line with the terminal patches plus
+  agent forwarding
 
-- `src/terminal/terminalframebuffer.h`
-- `src/terminal/terminalframebuffer.cc`
-- `src/tests/emulation-attributes.test`
+## Branches
 
-Build notes for macOS
----------------------
+- `master`: current fork integration branch and release branch
+- `dim-strikethrough-support`: historical development branch for the terminal
+  attribute work
+
+## Why This Fork Exists
+
+This fork started as a way to carry terminal-emulation changes that were useful
+in day-to-day use but were not available in an upstream release. Over time it
+also accumulated a few practical downstream fixes and features that were useful
+to ship together:
+
+- terminal attribute support that upstream still does not ship in a release
+- clipboard behavior that works better with tmux
+- agent forwarding support for users who want that tradeoff
+
+The fork should now be understood as a maintained downstream variant of `mosh`,
+not as a tiny patch queue.
+
+## Build Notes For macOS
 
 On macOS, prefer Apple's archive tools when building:
 
@@ -34,11 +50,10 @@ make check
 make install
 ```
 
-Using Homebrew's GNU `ar`/`ranlib` can produce archives that Apple's
-linker rejects.
+Using Homebrew's GNU `ar`/`ranlib` can produce archives that Apple's linker
+rejects.
 
-Testing alternate binaries
---------------------------
+## Testing Alternate Binaries
 
 You can test the fork without replacing your system `mosh`:
 
@@ -46,9 +61,10 @@ You can test the fork without replacing your system `mosh`:
 dist/bin/mosh --client="$PWD/dist/bin/mosh-client" --server="$PWD/dist/bin/mosh-server" host
 ```
 
-Notes
------
+## Notes
 
 - For a normal `mosh` deployment, patch both client and server.
-- The new attribute coverage is exercised through the existing
-  `emulation-attributes.test` suite.
+- The terminal attribute coverage is exercised through
+  `src/tests/emulation-attributes.test`.
+- The local integration test may need to run outside restrictive sandboxes
+  because `mosh-server` needs to bind localhost UDP sockets.
