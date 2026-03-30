@@ -2,13 +2,14 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.61])
-AC_INIT([mosh], [1.3.2], [mosh-devel@mit.edu])
-AM_INIT_AUTOMAKE([foreign std-options -Wall -Werror])
+AC_INIT([mosh], [1.4.0], [mosh-devel@mit.edu])
+AM_INIT_AUTOMAKE([foreign std-options -Wall -Werror -Wno-portability])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AC_CONFIG_SRCDIR([src/frontend/mosh-client.cc])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([src/include/config.h])
 AC_LANG([C++])
+AX_CODE_COVERAGE
 
 # Checks for programs.
 AC_PROG_CC([cc gcc clang])
@@ -21,9 +22,9 @@ AS_IF([test x"$PROTOC" = x],
 # automake 1.12 seems to require this, but automake 1.11 doesn't recognize it
 m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 
-# Protobuf 3.6+ requires C++11.
-AS_IF([pkg-config --atleast-version 3.6.0 protobuf],
-  [AX_CXX_COMPILE_STDCXX([11])])
+# Protobuf transitively requires at least C++14, get ahead of the
+# curve and require at least C++17.
+AX_CXX_COMPILE_STDCXX([17])
 
 WARNING_CXXFLAGS=""
 PICKY_CXXFLAGS=""
@@ -39,15 +40,19 @@ AC_ARG_ENABLE([compile-warnings],
        ;;
      maximum)
        WARNING_CXXFLAGS="-Wall"
-       PICKY_CXXFLAGS="-Wextra -pedantic -Wno-long-long -Weffc++ -Wmissing-declarations"
+       PICKY_CXXFLAGS="-Wextra -Wno-long-long -Weffc++ -Wmissing-declarations"
        ;;
      error)
-       WARNING_CXXFLAGS="-Wall -Werror"
-       PICKY_CXXFLAGS="-Wextra -pedantic -Wno-long-long -Weffc++ -Wmissing-declarations"
+       # remove -Wno-c++17-extensions once protocolbuffers/protobuf#9181 is
+       # resolved
+       # remove -Wno-unused-parameter once
+       # protocolbuffers/protobuf#10357 is resolved       
+       WARNING_CXXFLAGS="-Wall -Werror -Wno-c++17-extensions"
+       PICKY_CXXFLAGS="-Wextra -Wno-long-long -Weffc++ -Wmissing-declarations -Wno-unused-parameter"
        ;;
      distcheck)
        WARNING_CXXFLAGS="-Wall -Werror"
-       PICKY_CXXFLAGS="-Wextra -pedantic -Wno-long-long -Weffc++ -Wmissing-declarations"
+       PICKY_CXXFLAGS="-Wextra -Wno-long-long -Weffc++ -Wmissing-declarations"
        AX_CHECK_COMPILE_FLAG([-Wno-error=unused-parameter],
          [PICKY_CXXFLAGS="$PICKY_CXXFLAGS -Wno-error=unused-parameter"], [], [-Werror])
        AX_CHECK_COMPILE_FLAG([-Wno-error=c++11-extensions],
@@ -64,6 +69,43 @@ AC_ARG_ENABLE([compile-warnings],
   [WARNING_CXXFLAGS="-Wall"])
 AC_SUBST([WARNING_CXXFLAGS])
 AC_SUBST([PICKY_CXXFLAGS])
+
+# Check for fuzzing support before the flag wrapper, because if
+# requested and missing the functionality is entirely nonexistent.
+MISC_CXXFLAGS=""
+AC_ARG_ENABLE([fuzzing],
+  [AS_HELP_STRING([--enable-fuzzing],
+    [Enable compiler and linker options to enable fuzz testing @<:@no/yes/libfuzzer@:>@])],
+  [fuzzing="$enableval"
+   case "$enableval" in
+    no)
+      ;;
+    '' | yes | libfuzzer)
+      AX_CHECK_COMPILE_FLAG([-fsanitize=fuzzer],
+        [FUZZING_CFLAGS="$FUZZING_CFLAGS -fsanitize=fuzzer"], [
+        AC_MSG_ERROR([Fuzzing requested, but compiler support not present])], [-Werror])
+      ;;
+    *)
+     AC_MSG_ERROR(["Unknown argument '$enableval' to --enable-fuzzing])
+     ;;
+  esac],
+  [fuzzing="no"])
+AC_SUBST([FUZZING_CFLAGS])
+AC_SUBST([MISC_CXXFLAGS])
+AM_CONDITIONAL([ENABLE_FUZZING], [test x"$fuzzing" != xno])
+
+AC_ARG_ENABLE([asan],
+  [AS_HELP_STRING([--enable-asan],
+    [Enable compiler and linker options to enable AddressSanitizer @<:@no@:>@])],
+  [asan="$enableval"],
+  [asan="no"])
+
+AS_IF([test x"$asan" != x"no"], [
+  AX_CHECK_COMPILE_FLAG([-fsanitize=address,leak],
+  [MISC_CXXFLAGS="$MISC_CXXFLAGS -fsanitize=address,leak"], [
+  AC_MSG_ERROR([ASAN requested, but compiler support not present])], [-Werror])
+])
+AC_SUBST([MISC_CXXFLAGS])
 
 # We want to check for compiler flag support, but there is no way to make
 # clang's "argument unused" warning fatal.  So we invoke the compiler through a
@@ -116,7 +158,6 @@ AC_SUBST([HARDEN_CFLAGS])
 AC_SUBST([HARDEN_LDFLAGS])
 
 # Also check for a few non-hardening-related flags.
-MISC_CXXFLAGS=""
 AX_CHECK_COMPILE_FLAG([-fno-default-inline],
   [MISC_CXXFLAGS="$MISC_CXXFLAGS -fno-default-inline"], [], [-Werror])
 AX_CHECK_COMPILE_FLAG([-pipe],
@@ -167,6 +208,13 @@ AS_IF([test x"$enable_syslog" != xno],
     [AS_IF([test x"$enable_syslog" = xcheck],
       [AC_MSG_WARN([Unable to find syslog.h.])],
       [AC_MSG_ERROR([--enable-syslog was given but syslog.h was not found.])])])])
+
+AC_ARG_ENABLE([agent-forwarding],
+  [AS_HELP_STRING([--disable-agent-forwarding], [Build support for SSH agent forwarding @<:@yes@:>@])],
+  [enable_agent_forwarding="$enableval"],
+  [enable_agent_forwarding="yes"])
+AS_IF([test x"$enable_agent_forwarding" != xno],
+  [AC_DEFINE([SUPPORT_AGENT_FORWARDING], [1], [Define to build support for SSH agent forwarding.])])
 
 # Checks for libraries.
 AC_ARG_ENABLE([static-libraries],
@@ -219,6 +267,7 @@ AC_SEARCH_LIBS([clock_gettime], [rt])
 
 # Checks for header files.
 AC_CHECK_HEADERS(m4_normalize([
+  errno.h
   fcntl.h
   langinfo.h
   limits.h
@@ -231,6 +280,7 @@ AC_CHECK_HEADERS(m4_normalize([
   stdlib.h
   string.h
   sys/ioctl.h
+  sys/random.h
   sys/resource.h
   sys/socket.h
   sys/stat.h
@@ -246,6 +296,8 @@ AC_CHECK_HEADERS([endian.h sys/endian.h])
 AC_CHECK_HEADERS([utmpx.h])
 AC_CHECK_HEADERS([termio.h])
 AC_CHECK_HEADERS([sys/uio.h])
+AC_CHECK_HEADERS([sys/un.h])
+AC_CHECK_HEADERS([sys/types.h])
 AC_CHECK_HEADERS([memory tr1/memory])
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -263,6 +315,8 @@ AC_TYPE_UINTPTR_T
 
 # Checks for library functions.
 AC_CHECK_FUNCS(m4_normalize([
+  getentropy
+  getrandom
   gettimeofday
   posix_memalign
   cfmakeraw
@@ -281,7 +335,7 @@ PKG_CHECK_MODULES([TINFO], [tinfo],
         AC_SUBST([TINFO_LIBS], ["$TINFO_LDFLAGS -ltinfo"])],)])])
 
 # Then try to find it in a specific install dir
-AC_ARG_WITH(curses, [AC_HELP_STRING([--with-curses=DIR], [Where curses is installed])],
+AC_ARG_WITH(curses, [AS_HELP_STRING([--with-curses=DIR], [Where curses is installed])],
     [if test $withval != yes; then
         cv_curses=$withval
     fi
@@ -328,7 +382,7 @@ AC_ARG_WITH(
   [AS_HELP_STRING([--with-crypto-library=library], [build with the given crypto library, TYPE=openssl|nettle|apple-common-crypto @<:@default=openssl@:>@])],
   [
     case "${withval}" in
-      openssl|nettle|apple-common-crypto) ;;
+      openssl|openssl-with-internal-ocb|openssl-with-openssl-ocb|nettle|apple-common-crypto) ;;
       *) AC_MSG_ERROR([bad value ${withval} for --with-crypto-library]) ;;
     esac
   ],
@@ -336,29 +390,47 @@ AC_ARG_WITH(
 )
 
 dnl Checks for chosen crypto library
+PKG_CHECK_MODULES([OpenSSL], [openssl],
+  [have_openssl=yes
+    AC_CHECK_LIB([crypto], [AES_encrypt], [have_deprecated_openssl_aes=yes])
+    AC_CHECK_LIB([crypto], [EVP_aes_128_ocb], [have_evp_aes_ocb=yes])],
+  [:])
+PKG_CHECK_MODULES([Nettle], [nettle], [have_nettle=yes], [:])
+AS_CASE([$with_crypto_library],
+  [openssl*],
+    [AS_IF([test "x$have_openssl" != xyes],
+       [AC_MSG_ERROR([OpenSSL crypto library not found])])
+     AC_DEFINE([USE_OPENSSL_AES], [1], [Use OpenSSL library])
+     AC_SUBST([CRYPTO_CFLAGS], ["$OpenSSL_CFLAGS"])
+     AC_SUBST([CRYPTO_LIBS], ["$OpenSSL_LIBS -lcrypto"])])
 case "${with_crypto_library}" in
-  openssl)
-    PKG_CHECK_MODULES([CRYPTO], [openssl],
-      [AC_DEFINE([USE_OPENSSL_AES], [1], [Use OpenSSL library])],
-      [AX_CHECK_LIBRARY([CRYPTO], [openssl/aes.h], [crypto],
-        [AC_DEFINE([USE_OPENSSL_AES], [1], [Use OpenSSL library])
-          AC_SUBST([CRYPTO_CFLAGS], ["$CRYPTO_CPPFLAGS"])
-          AC_SUBST([CRYPTO_LIBS], ["$CRYPTO_LDFLAGS -lcrypto"])],
-        [AC_MSG_ERROR([OpenSSL crypto library not found])])])
-        ;;
+  openssl|openssl-with-internal-ocb)
+    AS_IF([test "x$have_deprecated_openssl_aes" != xyes],
+      [AC_MSG_ERROR([found OpenSSL without AES support])])
+    AM_CONDITIONAL([USE_AES_OCB_FROM_OPENSSL], [false])
+    human_readable_cryptography_description='internal OCB, OpenSSL AES'
+    ;;
+  openssl-with-openssl-ocb)
+    AS_IF([test "x$have_evp_aes_ocb" != xyes],
+      [AC_MSG_ERROR([found OpenSSL without AES-OCB support])])
+    AM_CONDITIONAL([USE_AES_OCB_FROM_OPENSSL], [true])
+    human_readable_cryptography_description='OpenSSL OCB, OpenSSL AES'
+    ;;
   nettle)
-    PKG_CHECK_MODULES([CRYPTO], [nettle],
-      [],
+    AS_IF([test "x$have_nettle" != xyes],
       [AC_MSG_ERROR([Nettle crypto library not found])])
     AC_DEFINE([USE_NETTLE_AES], [1], [Use Nettle library])
+    AC_SUBST([CRYPTO_CFLAGS], ["$Nettle_CFLAGS"])
+    AC_SUBST([CRYPTO_LIBS], ["$Nettle_LIBS"])
+    AM_CONDITIONAL([USE_AES_OCB_FROM_OPENSSL], [false])
+    human_readable_cryptography_description='internal OCB, Nettle AES'
     ;;
   apple-common-crypto)
-    dnl Common Crypto is in Apple's standard paths and base libraries.
-    dnl So just check for presence of the header.
-    AC_CHECK_HEADERS([CommonCrypto/CommonCrypto.h],
-      [],
+    AS_IF([test "x$ac_cv_header_CommonCrypto_CommonCrypto_h" != xyes],
       [AC_MSG_ERROR([Apple Common Crypto header not found])])
     AC_DEFINE([USE_APPLE_COMMON_CRYPTO_AES], [1], [Use Apple Common Crypto library])
+    AM_CONDITIONAL([USE_AES_OCB_FROM_OPENSSL], [false])
+    human_readable_cryptography_description='internal OCB, Apple Common Crypto AES'
     ;;
 esac
 
@@ -523,11 +595,13 @@ AC_CONFIG_FILES([
   src/Makefile
   src/crypto/Makefile
   src/frontend/Makefile
+  src/fuzz/Makefile
   src/include/Makefile
   src/network/Makefile
   src/protobufs/Makefile
   src/statesync/Makefile
   src/terminal/Makefile
+  src/agent/Makefile
   src/util/Makefile
   scripts/Makefile
   src/examples/Makefile
@@ -543,4 +617,5 @@ AC_MSG_NOTICE([c++ compiler:        $CXX])
 AC_MSG_NOTICE([Warning CXXFLAGS:    $WARNING_CXXFLAGS])
 AC_MSG_NOTICE([Picky CXXFLAGS:      $PICKY_CXXFLAGS])
 AC_MSG_NOTICE([Harden CFLAGS:       $HARDEN_CFLAGS])
+AC_MSG_NOTICE([Cryptography:        $human_readable_cryptography_description])
 AC_MSG_NOTICE([ =============================])

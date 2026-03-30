@@ -33,55 +33,99 @@
 #ifndef PRNG_HPP
 #define PRNG_HPP
 
-#include <string>
-#include <stdint.h>
-#include <fstream>
+#include "config.h"
 
-#include "crypto.h"
+#if !defined( HAVE_GETENTROPY ) && !defined( HAVE_GETRANDOM )
+#define HAVE_URANDOM 1
+#else
+#undef HAVE_URANDOM
+#endif
+
+#include <unistd.h>
+#ifdef HAVE_SYS_RANDOM_H
+#include <sys/random.h>
+#endif
+
+#include <algorithm>
+#include <cstdint>
+#include <fstream>
+#include <string>
+
+#include "src/crypto/crypto.h"
 
 /* Read random bytes from /dev/urandom.
 
    We rely on stdio buffering for efficiency. */
 
+#ifdef HAVE_URANDOM
 static const char rdev[] = "/dev/urandom";
+#endif
 
 using namespace Crypto;
 
-class PRNG {
- private:
+class PRNG
+{
+private:
+#ifdef HAVE_URANDOM
   std::ifstream randfile;
+#endif
 
   /* unimplemented to satisfy -Weffc++ */
-  PRNG( const PRNG & );
-  PRNG & operator=( const PRNG & );
+  PRNG( const PRNG& );
+  PRNG& operator=( const PRNG& );
 
- public:
-  PRNG() : randfile( rdev, std::ifstream::in | std::ifstream::binary ) {}
+public:
+  PRNG()
+#ifdef HAVE_URANDOM
+    : randfile( rdev, std::ifstream::in | std::ifstream::binary )
+#endif
+  {}
 
-  void fill( void *dest, size_t size ) {
+  void fill( void* dest, size_t size )
+  {
     if ( 0 == size ) {
       return;
     }
 
-    randfile.read( static_cast<char *>( dest ), size );
+#if defined( HAVE_GETRANDOM )
+    if ( getrandom( dest, size, 0 ) != static_cast<ssize_t>( size ) ) {
+      throw CryptoException( "getrandom fell short" );
+    }
+#elif defined( HAVE_GETENTROPY )
+    // getentropy() can only read up to 256 bytes at a time :(.
+    const size_t max_read = 256;
+    while ( size ) {
+      size_t this_size = std::min( max_read, size );
+      if ( getentropy( dest, this_size ) ) {
+        throw CryptoException( "getentropy fell short" );
+      }
+      size -= this_size;
+      dest = static_cast<char*>( dest ) + this_size;
+    }
+#else
+    randfile.read( static_cast<char*>( dest ), size );
     if ( !randfile ) {
       throw CryptoException( "Could not read from " + std::string( rdev ) );
     }
+#endif
   }
 
-  uint8_t uint8() {
+  uint8_t uint8()
+  {
     uint8_t x;
     fill( &x, 1 );
     return x;
   }
 
-  uint32_t uint32() {
+  uint32_t uint32()
+  {
     uint32_t x;
     fill( &x, 4 );
     return x;
   }
 
-  uint64_t uint64() {
+  uint64_t uint64()
+  {
     uint64_t x;
     fill( &x, 8 );
     return x;

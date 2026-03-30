@@ -1,7 +1,15 @@
-[![Build Status](https://travis-ci.org/mobile-shell/mosh.svg?branch=master)](https://travis-ci.org/mobile-shell/mosh)
+[![ci](https://github.com/mobile-shell/mosh/actions/workflows/ci.yml/badge.svg)](https://github.com/mobile-shell/mosh/actions/workflows/ci.yml)
 
 Mosh: the mobile shell
 ======================
+
+Fork note
+---------
+
+This fork carries a small terminal-emulation patch for ECMA-48
+`SGR 2` (`faint`/`dim`) and `SGR 9` (`strikethrough`) support.
+The fork delta is intentionally kept small; see `FORK_NOTES.md` for
+details, rationale, and macOS build notes.
 
 Mosh is a remote terminal application that supports intermittent
 connectivity, allows roaming, and provides speculative local echo
@@ -144,6 +152,56 @@ Mosh has a Perl dependency that is only required for client use.  For
 some platforms, it may make sense to have separate mosh-server and
 mosh-client packages to allow mosh-server usage without Perl.
 
+Notes for developers
+--------------------
+
+To start contributing to Mosh, install the following dependencies:
+
+Debian, Windows Subsystem for Linux:
+
+```
+$ sudo apt install -y build-essential protobuf-compiler \
+    libprotobuf-dev pkg-config libutempter-dev zlib1g-dev libncurses5-dev \
+    libssl-dev bash-completion tmux less
+```
+
+Fedora, RHEL:
+
+```
+$ sudo dnf group install development-tools
+$ sudo dnf install automake protobuf-compiler protobuf-devel libutempter-devel \
+    zlib-ng-compat-devel ncurses-devel openssl-devel bash-completion tmux less \
+    perl-diagnostics
+```
+
+MacOS:
+
+```
+$ brew install protobuf automake
+```
+
+Once you have forked the repository, run the following to build and test Mosh:
+
+```
+$ ./autogen.sh
+$ ./configure
+$ make
+$ make check
+```
+
+Mosh supports producing code coverage reports by tests, but this feature is
+disabled by default. To enable it, make sure `lcov` is installed on your
+system. Then, configure and run tests:
+
+```
+$ ./configure --enable-code-coverage
+$ make check-code-coverage
+```
+
+This will run all tests and produce a coverage report in HTML form that can be
+opened with your favorite browser. Ideally, newly added code should strive for
+90% (or better) incremental test coverage.
+
 More info
 ---------
 
@@ -159,6 +217,6 @@ More info
 
     <https://mailman.mit.edu/mailman/listinfo/mosh-users>
 
-  * `#mosh` channel on [Freenode IRC](https://freenode.net/)
+  * `#mosh` channel on [Libera Chat](https://libera.chat/)
 
-    https://webchat.freenode.net/?channels=mosh
+    https://web.libera.chat/#mosh

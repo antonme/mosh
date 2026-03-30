@@ -7,8 +7,8 @@ EXTRA_DIST = \
 	$(displaytests) \
 	emulation-attributes.test
 
-AM_CXXFLAGS = $(WARNING_CXXFLAGS) $(PICKY_CXXFLAGS) $(HARDEN_CFLAGS) $(MISC_CXXFLAGS)
-AM_LDFLAGS  = $(HARDEN_LDFLAGS)
+AM_CXXFLAGS = -I$(top_srcdir)/ $(WARNING_CXXFLAGS) $(PICKY_CXXFLAGS) $(HARDEN_CFLAGS) $(MISC_CXXFLAGS) $(CODE_COVERAGE_CXXFLAGS)
+AM_LDFLAGS  = $(HARDEN_LDFLAGS) $(CODE_COVERAGE_LIBS)
 
 displaytests = \
 	e2e-success.test \
@@ -21,6 +21,7 @@ displaytests = \
 	emulation-attributes-256color248.test \
 	emulation-attributes-truecolor.test \
 	emulation-attributes-bce.test \
+	emulation-attributes-osc8.test \
 	emulation-back-tab.test \
 	emulation-cursor-motion.test \
 	emulation-multiline-scroll.test \
