@@ -6,7 +6,7 @@ Mosh: the mobile shell
 Fork note
 ---------
 
-This fork differs from upstream release `mosh` in two main ways:
+This fork differs from the upstream release `mosh` in three main ways:
 
 - ECMA-48 `SGR 2` (`faint` / `dim`) support
 - ECMA-48 `SGR 9` (`strikethrough`) support
@@ -15,6 +15,15 @@ This fork differs from upstream release `mosh` in two main ways:
 
 See `FORK_NOTES.md` for the current fork release line, branch notes,
 and downstream build/testing notes.
+
+Install
+--------
+A simple way to install it on macOS or Linux is via the Homebrew tap:
+```sh
+brew uninstall mosh
+brew tap antonme/mosh
+brew install antonme/mosh/mosh-dim
+```
 
 Original description
 ---------
