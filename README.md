@@ -16,6 +16,9 @@ This fork differs from upstream release `mosh` in two main ways:
 See `FORK_NOTES.md` for the current fork release line, branch notes,
 and downstream build/testing notes.
 
+Original description
+---------
+
 Mosh is a remote terminal application that supports intermittent
 connectivity, allows roaming, and provides speculative local echo
 and line editing of user keystrokes.
