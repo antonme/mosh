@@ -13,9 +13,6 @@ This fork differs from the upstream release `mosh` in three main ways:
 - SSH agent forwarding support, integrated from
   `mobile-shell/mosh#1297`
 
-See `FORK_NOTES.md` for the current fork release line, branch notes,
-and downstream build/testing notes.
-
 Install
 --------
 A simple way to install it on macOS or Linux is via the Homebrew tap:
