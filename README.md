@@ -18,8 +18,8 @@ Install
 A simple way to install it on macOS or Linux is via the Homebrew tap:
 ```sh
 brew uninstall mosh
-brew tap antonme/mosh
-brew install antonme/mosh/mosh-dim
+brew tap antonme/tap
+brew install antonme/tap/mosh
 ```
 
 Original description
