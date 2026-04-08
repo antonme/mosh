@@ -6,10 +6,14 @@ Mosh: the mobile shell
 Fork note
 ---------
 
-This fork differs from the upstream release `mosh` in three main ways:
+This fork differs from the upstream release `mosh` in the following ways:
 
+- OSC 10/11 color query support (dark/light theme detection for vim, neovim, tmux, delta, bat)
+- OSC 8 hyperlink support
 - ECMA-48 `SGR 2` (`faint` / `dim`) support
 - ECMA-48 `SGR 9` (`strikethrough`) support
+- Cursor shape support, integrated from
+  `mobile-shell/mosh#1355`
 - SSH agent forwarding support, integrated from
   `mobile-shell/mosh#1297`
 

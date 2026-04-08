@@ -73,7 +73,8 @@
 
 static void print_version( FILE* file )
 {
-  fputs( "mosh-client (" PACKAGE_STRING ") [build " BUILD_VERSION "]\n"
+  fputs( "mosh-client (" PACKAGE_STRING "-fork8) [build " BUILD_VERSION "]\n"
+         "Fork: https://github.com/antonme/mosh (release fork8-osc11)\n"
          "Copyright 2012 Keith Winstein <mosh-devel@mit.edu>\n"
          "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>.\n"
          "This is free software: you are free to change and redistribute it.\n"
