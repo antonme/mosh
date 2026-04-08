@@ -322,7 +322,7 @@ ActionPointer DCS_Passthrough::enter( void ) const
   return std::make_shared<Hook>();
 }
 
-ActionPointer DCS_Passthrough::exit( void ) const
+ActionPointer DCS_Passthrough::exit( wchar_t ) const
 {
   return std::make_shared<Unhook>();
 }
@@ -354,8 +354,17 @@ ActionPointer OSC_String::enter( void ) const
   return std::make_shared<OSC_Start>();
 }
 
-ActionPointer OSC_String::exit( void ) const
+ActionPointer OSC_String::exit( wchar_t ch ) const
 {
+  /* BEL (0x07) exits via input_state_rule; ESC-initiated ST exits via
+     anywhere_rule with ch == 0x1B; 8-bit ST (0x9C) exits via input_state_rule.
+     Only BEL needs the flag — ST cases fall through to the default OSC_End. */
+  if ( ch == 0x07 ) {
+    auto end = std::make_shared<OSC_End>();
+    end->ch = 0x07;
+    end->char_present = true;
+    return end;
+  }
   return std::make_shared<OSC_End>();
 }
 

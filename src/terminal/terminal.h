@@ -60,11 +60,16 @@ class Emulator
 
   friend void Parser::UserByte::act_on_terminal( Emulator* ) const;
   friend void Parser::Resize::act_on_terminal( Emulator* ) const;
+  friend void Parser::TerminalColors::act_on_terminal( Emulator* ) const;
 
 private:
   Framebuffer fb;
   Dispatcher dispatch;
   UserInput user;
+
+  /* Cached terminal default colors from the client (opaque payloads). */
+  std::string cached_foreground_color;
+  std::string cached_background_color;
 
   /* action methods */
   void print( const Parser::Print* act );
@@ -80,6 +85,8 @@ public:
   std::string read_octets_to_host( void );
 
   const Framebuffer& get_fb( void ) const { return fb; }
+
+  void set_terminal_colors( const std::string& fg, const std::string& bg );
 
   bool operator==( Emulator const& x ) const;
 };

@@ -41,7 +41,9 @@
 
 using namespace Terminal;
 
-Emulator::Emulator( size_t s_width, size_t s_height ) : fb( s_width, s_height ), dispatch(), user() {}
+Emulator::Emulator( size_t s_width, size_t s_height )
+  : fb( s_width, s_height ), dispatch(), user(), cached_foreground_color(), cached_background_color()
+{}
 
 std::string Emulator::read_octets_to_host( void )
 {
@@ -151,7 +153,7 @@ void Emulator::CSI_dispatch( const Parser::CSI_Dispatch* act )
 
 void Emulator::OSC_end( const Parser::OSC_End* act )
 {
-  dispatch.OSC_dispatch( act, &fb );
+  dispatch.OSC_dispatch( act, &fb, cached_foreground_color, cached_background_color );
 }
 
 void Emulator::Esc_dispatch( const Parser::Esc_Dispatch* act )
@@ -171,8 +173,14 @@ void Emulator::resize( size_t s_width, size_t s_height )
   fb.resize( s_width, s_height );
 }
 
+void Emulator::set_terminal_colors( const std::string& fg, const std::string& bg )
+{
+  cached_foreground_color = fg;
+  cached_background_color = bg;
+}
+
 bool Emulator::operator==( Emulator const& x ) const
 {
-  /* dispatcher and user are irrelevant for us */
+  /* dispatcher, user, and cached terminal colors are irrelevant for display */
   return fb == x.fb;
 }

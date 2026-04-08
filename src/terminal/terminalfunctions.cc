@@ -635,51 +635,94 @@ static void OSC_8( const std::string& OSC_string, Framebuffer* fb )
 }
 
 /* xterm uses an Operating System Command to set the window title */
-void Dispatcher::OSC_dispatch( const Parser::OSC_End* act __attribute( ( unused ) ), Framebuffer* fb )
+void Dispatcher::OSC_dispatch( const Parser::OSC_End* act, Framebuffer* fb,
+                               const std::string& cached_fg, const std::string& cached_bg )
 {
+  /* Determine reply terminator: mirror the query's terminator (BEL or ST). */
+  const bool bel_terminated = ( act->char_present && act->ch == 0x07 );
   /* handle osc copy clipboard sequence 52;c; */
   if ( OSC_string.size() >= 5 && OSC_string[0] == L'5' && OSC_string[1] == L'2' && OSC_string[2] == L';'
        && OSC_string[3] == L'c' && OSC_string[4] == L';' ) {
     Terminal::Framebuffer::title_type clipboard( OSC_string.begin() + 5, OSC_string.end() );
     fb->set_clipboard( clipboard );
-    /* handle osc terminal title sequence */
-  } else if ( OSC_string.size() >= 1 ) {
-    long cmd_num = -1;
-    int offset = 0;
-    if ( OSC_string[0] == L';' ) {
-      /* OSC of the form "\033];<title>\007" */
-      cmd_num = 0; /* treat it as as a zero */
-      offset = 1;
-    } else if ( ( OSC_string.size() >= 2 ) && ( OSC_string[1] == L';' ) ) {
-      /* OSC of the form "\033]X;<title>\007" where X can be:
-       * 0: set icon name and window title
-       * 1: set icon name
-       * 2: set window title */
-      cmd_num = OSC_string[0] - L'0';
-      offset = 2;
-    }
-    if ( cmd_num == 8 ) {
-      // Handle OSC8 hyperlinks separately
-      std::string osc_8_str;
-      if ( !Parse_OSC_8( OSC_string, osc_8_str ) ) {
-        //
-        return;
+    return;
+  }
+
+  if ( OSC_string.empty() ) {
+    return;
+  }
+
+  /* Parse numeric Ps and locate the semicolon or end of string. */
+  long cmd_num = -1;
+  size_t offset = 0;
+
+  if ( OSC_string[0] == L';' ) {
+    /* OSC of the form "\033];<title>\007" */
+    cmd_num = 0;
+    offset = 1;
+  } else if ( OSC_string[0] >= L'0' && OSC_string[0] <= L'9' ) {
+    /* Parse multi-digit numeric Ps */
+    cmd_num = 0;
+    for ( offset = 0; offset < OSC_string.size(); offset++ ) {
+      wchar_t c = OSC_string[offset];
+      if ( c >= L'0' && c <= L'9' ) {
+        cmd_num = cmd_num * 10 + ( c - L'0' );
+        if ( cmd_num > 65535 ) {
+          return; /* unreasonably large, ignore */
+        }
+      } else if ( c == L';' ) {
+        offset++; /* skip the semicolon */
+        break;
+      } else {
+        return; /* unexpected character, ignore */
       }
-      OSC_8( osc_8_str, fb );
+    }
+  }
+
+  /* OSC 8: hyperlinks */
+  if ( cmd_num == 8 ) {
+    std::string osc_8_str;
+    if ( !Parse_OSC_8( OSC_string, osc_8_str ) ) {
       return;
     }
-    bool set_icon = cmd_num == 0 || cmd_num == 1;
-    bool set_title = cmd_num == 0 || cmd_num == 2;
-    if ( set_icon || set_title ) {
-      fb->set_title_initialized();
-      int title_length = std::min( OSC_string.size(), (size_t)256 );
-      Terminal::Framebuffer::title_type newtitle( OSC_string.begin() + offset, OSC_string.begin() + title_length );
-      if ( set_icon ) {
-        fb->set_icon_name( newtitle );
+    OSC_8( osc_8_str, fb );
+    return;
+  }
+
+  /* OSC 10;? and OSC 11;?: reply with cached terminal colors. */
+  if ( cmd_num == 10 || cmd_num == 11 ) {
+    /* Only respond to queries (exactly "?"), not set commands. */
+    if ( offset + 1 == OSC_string.size() && OSC_string[offset] == L'?' ) {
+      const std::string& color = ( cmd_num == 10 ) ? cached_fg : cached_bg;
+      if ( !color.empty() ) {
+        char ps_str[8];
+        snprintf( ps_str, sizeof( ps_str ), "%ld", cmd_num );
+        terminal_to_host.append( "\033]" );
+        terminal_to_host.append( ps_str );
+        terminal_to_host.append( ";" );
+        terminal_to_host.append( color );
+        if ( bel_terminated ) {
+          terminal_to_host.push_back( '\007' );
+        } else {
+          terminal_to_host.append( "\033\\" );
+        }
       }
-      if ( set_title ) {
-        fb->set_window_title( newtitle );
-      }
+    }
+    return;
+  }
+
+  /* OSC 0/1/2: window title and icon name */
+  bool set_icon = cmd_num == 0 || cmd_num == 1;
+  bool set_title = cmd_num == 0 || cmd_num == 2;
+  if ( set_icon || set_title ) {
+    fb->set_title_initialized();
+    size_t title_length = std::min( OSC_string.size(), (size_t)256 );
+    Terminal::Framebuffer::title_type newtitle( OSC_string.begin() + offset, OSC_string.begin() + title_length );
+    if ( set_icon ) {
+      fb->set_icon_name( newtitle );
+    }
+    if ( set_title ) {
+      fb->set_window_title( newtitle );
     }
   }
 }

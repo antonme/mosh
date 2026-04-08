@@ -52,6 +52,8 @@
 #include <util.h>
 #endif
 
+#include <poll.h>
+
 #include "src/statesync/completeterminal.h"
 #include "src/statesync/user.h"
 #include "src/util/fatal_assert.h"
@@ -234,6 +236,190 @@ void STMClient::shutdown( void )
   }
 }
 
+/* Result of probing the terminal for OSC 10/11 default colors. */
+struct ColorProbeResult
+{
+  std::string foreground;
+  std::string background;
+  std::string leftover_bytes; /* non-reply stdin bytes to re-inject */
+};
+
+/* Maximum payload length we accept from a terminal color response. */
+static const size_t MAX_COLOR_PAYLOAD = 256;
+
+/* Sanitize an OSC color payload: reject anything that isn't a plausible color value. */
+static bool sanitize_color_payload( const std::string& payload )
+{
+  if ( payload.empty() || payload.size() > MAX_COLOR_PAYLOAD ) {
+    return false;
+  }
+  /* Reject "?" — an echoed query, not a color answer. */
+  if ( payload == "?" ) {
+    return false;
+  }
+  for ( size_t i = 0; i < payload.size(); i++ ) {
+    unsigned char c = payload[i];
+    if ( c < 0x20 || c == 0x7F || c == ';' ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/*
+ * Probe the real terminal for OSC 10/11 colors.
+ * Must be called after raw mode is enabled and display is open.
+ * Returns parsed colors and any leftover stdin bytes.
+ */
+static ColorProbeResult probe_terminal_colors( void )
+{
+  ColorProbeResult result;
+
+  static const int timeout_ms = 100;
+
+  /* Send OSC 10;? and OSC 11;? queries with ST terminator. */
+  const char query[] = "\033]10;?\033\\\033]11;?\033\\";
+  swrite( STDOUT_FILENO, query, sizeof( query ) - 1 );
+
+  /* Read responses from stdin with timeout. */
+  std::string buf;
+  freeze_timestamp();
+  uint64_t deadline = frozen_timestamp() + timeout_ms;
+
+  while ( true ) {
+    freeze_timestamp();
+    int remaining = static_cast<int>( deadline - frozen_timestamp() );
+    if ( remaining <= 0 ) {
+      break;
+    }
+
+    struct pollfd pfd;
+    pfd.fd = STDIN_FILENO;
+    pfd.events = POLLIN;
+    int ret = poll( &pfd, 1, remaining );
+    if ( ret <= 0 ) {
+      break;
+    }
+
+    char tmp[512];
+    ssize_t n = read( STDIN_FILENO, tmp, sizeof( tmp ) );
+    if ( n <= 0 ) {
+      break;
+    }
+    buf.append( tmp, n );
+
+    /* Check if we've received both target OSC replies by scanning for
+       complete ESC ] 10 ; ... <term> and ESC ] 11 ; ... <term> sequences. */
+    bool got_10 = false, got_11 = false;
+    for ( size_t i = 0; i + 4 < buf.size(); i++ ) {
+      if ( buf[i] != '\033' || buf[i + 1] != ']' ) {
+        continue;
+      }
+      /* Check for "10;" or "11;" after ESC ] */
+      long ps = -1;
+      if ( buf[i + 2] == '1' && buf[i + 3] == '0' && buf[i + 4] == ';' ) {
+        ps = 10;
+      } else if ( i + 5 <= buf.size() && buf[i + 2] == '1' && buf[i + 3] == '1' && buf[i + 4] == ';' ) {
+        ps = 11;
+      }
+      if ( ps < 0 ) {
+        continue;
+      }
+      /* Look for terminator (BEL or ESC \) after the semicolon. */
+      for ( size_t j = i + 5; j < buf.size(); j++ ) {
+        if ( buf[j] == '\007' || ( buf[j] == '\033' && j + 1 < buf.size() && buf[j + 1] == '\\' ) ) {
+          if ( ps == 10 ) got_10 = true;
+          if ( ps == 11 ) got_11 = true;
+          i = j; /* advance outer scan past this reply */
+          break;
+        }
+      }
+    }
+    if ( got_10 && got_11 ) {
+      break;
+    }
+  }
+
+  /*
+   * Parse OSC responses out of buf.
+   * Each response: ESC ] Ps ; Pt (BEL | ESC \)
+   * Extract Ps and Pt for Ps=10 and Ps=11.
+   * Everything else goes into leftover_bytes.
+   */
+  size_t pos = 0;
+  while ( pos < buf.size() ) {
+    /* Look for ESC ] */
+    if ( buf[pos] == '\033' && pos + 1 < buf.size() && buf[pos + 1] == ']' ) {
+      size_t start = pos;
+      pos += 2; /* skip ESC ] */
+
+      /* Parse Ps (numeric) */
+      long ps = 0;
+      bool has_ps = false;
+      while ( pos < buf.size() && buf[pos] >= '0' && buf[pos] <= '9' ) {
+        ps = ps * 10 + ( buf[pos] - '0' );
+        if ( ps > 65535 ) {
+          break;
+        }
+        has_ps = true;
+        pos++;
+      }
+
+      /* Expect semicolon */
+      if ( !has_ps || pos >= buf.size() || buf[pos] != ';' ) {
+        /* Not a valid reply, treat bytes from start as leftover */
+        result.leftover_bytes.push_back( buf[start] );
+        pos = start + 1;
+        continue;
+      }
+      pos++; /* skip semicolon */
+
+      /* Extract Pt until terminator (BEL or ESC \) */
+      std::string pt;
+      bool terminated = false;
+      while ( pos < buf.size() ) {
+        if ( buf[pos] == '\007' ) {
+          terminated = true;
+          pos++;
+          break;
+        } else if ( buf[pos] == '\033' && pos + 1 < buf.size() && buf[pos + 1] == '\\' ) {
+          terminated = true;
+          pos += 2;
+          break;
+        } else {
+          pt.push_back( buf[pos] );
+          pos++;
+        }
+      }
+
+      if ( terminated && ( ps == 10 || ps == 11 ) && sanitize_color_payload( pt ) ) {
+        if ( ps == 10 ) {
+          result.foreground = pt;
+        } else {
+          result.background = pt;
+        }
+      } else if ( terminated ) {
+        /* Valid OSC reply for a Ps we don't handle, or failed sanitization:
+           preserve original bytes as leftover so we don't drop unrelated traffic. */
+        for ( size_t i = start; i < pos; i++ ) {
+          result.leftover_bytes.push_back( buf[i] );
+        }
+      } else {
+        /* Unterminated or invalid: treat everything from start as leftover */
+        for ( size_t i = start; i < pos; i++ ) {
+          result.leftover_bytes.push_back( buf[i] );
+        }
+      }
+    } else {
+      /* Not an OSC start: leftover user byte */
+      result.leftover_bytes.push_back( buf[pos] );
+      pos++;
+    }
+  }
+
+  return result;
+}
+
 void STMClient::main_init( void )
 {
   Select& sel = Select::get_instance();
@@ -258,6 +444,10 @@ void STMClient::main_init( void )
   std::string init = display.new_frame( false, local_framebuffer, local_framebuffer );
   swrite( STDOUT_FILENO, init.data(), init.size() );
 
+  /* Probe terminal for default foreground/background colors.
+     Must happen after raw mode and display.open(), before network creation. */
+  ColorProbeResult colors = probe_terminal_colors();
+
   /* open network */
   Network::UserStream blank;
   Terminal::Complete local_terminal( window_size.ws_col, window_size.ws_row );
@@ -267,6 +457,17 @@ void STMClient::main_init( void )
 
   /* tell server the size of the terminal */
   network->get_current_state().push_back( Parser::Resize( window_size.ws_col, window_size.ws_row ) );
+
+  /* send cached terminal colors to server */
+  if ( !colors.foreground.empty() || !colors.background.empty() ) {
+    network->get_current_state().push_back(
+      Parser::TerminalColors( colors.foreground, colors.background ) );
+  }
+
+  /* re-inject any leftover stdin bytes consumed during the probe */
+  for ( size_t i = 0; i < colors.leftover_bytes.size(); i++ ) {
+    network->get_current_state().push_back( Parser::UserByte( colors.leftover_bytes[i] ) );
+  }
 
   /* be noisy as necessary */
   network->set_verbose( verbose );
