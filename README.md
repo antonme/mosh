@@ -56,6 +56,27 @@ Other features
    * Mosh leverages SSH to set up the connection and authenticate
      users. Mosh does not contain any privileged (root) code.
 
+Fork additions
+--------------
+
+This fork ([antonme/mosh](https://github.com/antonme/mosh)) includes the
+following changes on top of upstream mosh 1.4.0:
+
+   * **OSC 10/11 color query support.** Applications like vim, neovim, tmux,
+     delta, and bat query the terminal's foreground and background colors to
+     detect dark/light theme. Upstream mosh drops these queries. This fork
+     adds query support: the client probes the real terminal at startup and
+     the server answers `OSC 10;?` / `OSC 11;?` on behalf of applications.
+     (Fixes [#1145](https://github.com/mobile-shell/mosh/issues/1145),
+     [#1351](https://github.com/mobile-shell/mosh/issues/1351))
+
+   * **OSC 8 hyperlink support.** Clickable hyperlinks in terminal output
+     are preserved through mosh sessions.
+
+Install from Homebrew tap:
+
+    brew install antonme/tap/mosh
+
 Getting Mosh
 ------------
 
