@@ -62,6 +62,7 @@
 #include "src/util/select.h"
 #include "src/util/swrite.h"
 #include "src/util/timestamp.h"
+#include "src/agent/agent.h"
 #include "stmclient.h"
 
 #include "src/network/networktransport-impl.h"
@@ -645,6 +646,10 @@ bool STMClient::main( void )
   }
 #endif
 
+  Agent::ProxyAgent agent( false, ! forward_agent );
+
+  agent.attach_oob(network->oob());
+
   /* prepare to poll for events */
   Select& sel = Select::get_instance();
 
@@ -667,6 +672,8 @@ bool STMClient::main( void )
         sel.add_fd( *it );
       }
       sel.add_fd( STDIN_FILENO );
+
+      network->oob()->pre_poll();
 
       int active_fds = sel.select( wait_time );
       if ( active_fds < 0 ) {
@@ -694,7 +701,10 @@ bool STMClient::main( void )
           break;
         } else if ( !network->shutdown_in_progress() ) {
           overlays.get_notification_engine().set_notification_string( std::wstring( L"Exiting..." ), true );
+          network->oob()->shutdown();
           network->start_shutdown();
+        } else {
+          network->oob()->shutdown();
         }
       }
 
@@ -713,6 +723,7 @@ bool STMClient::main( void )
         } else if ( !network->shutdown_in_progress() ) {
           overlays.get_notification_engine().set_notification_string(
             std::wstring( L"Signal received, shutting down..." ), true );
+          network->oob()->shutdown();
           network->start_shutdown();
         }
       }
@@ -741,6 +752,7 @@ bool STMClient::main( void )
           if ( !network->shutdown_in_progress() ) {
             overlays.get_notification_engine().set_notification_string(
               std::wstring( L"Timed out waiting for server..." ), true );
+            network->oob()->shutdown();
             network->start_shutdown();
           }
         } else {
@@ -751,9 +763,11 @@ bool STMClient::main( void )
         overlays.get_notification_engine().set_notification_string( L"" );
       }
 
-      network->tick();
+      network->oob()->post_poll();
 
+      network->tick();
       std::string& send_error = network->get_send_error();
+      network->oob()->post_tick();
       if ( !send_error.empty() ) {
         overlays.get_notification_engine().set_network_error( send_error );
         send_error.clear();

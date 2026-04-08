@@ -65,9 +65,9 @@ DrawState::DrawState( int s_width, int s_height )
     combining_char_row( 0 ), default_tabs( true ), tabs( s_width ), scrolling_region_top_row( 0 ),
     scrolling_region_bottom_row( height - 1 ), renditions( 0 ), hyperlink(), save(), next_print_will_wrap( false ),
     origin_mode( false ), auto_wrap_mode( true ), insert_mode( false ), cursor_visible( true ),
-    reverse_video( false ), bracketed_paste( false ), mouse_reporting_mode( MOUSE_REPORTING_NONE ),
-    mouse_focus_event( false ), mouse_alternate_scroll( false ), mouse_encoding_mode( MOUSE_ENCODING_DEFAULT ),
-    application_mode_cursor_keys( false )
+    reverse_video( false ), bracketed_paste( false ), cursor_shape( -1 ),
+    mouse_reporting_mode( MOUSE_REPORTING_NONE ), mouse_focus_event( false ), mouse_alternate_scroll( false ),
+    mouse_encoding_mode( MOUSE_ENCODING_DEFAULT ), application_mode_cursor_keys( false )
 {
   reinitialize_tabs( 0 );
 }
@@ -489,11 +489,17 @@ void Renditions::set_rendition( color_type num )
     return;
   }
 
-  bool value = num < 9;
+  bool value = num < 10;
   switch ( num ) {
     case 1:
+      set_attribute( bold, value );
+      break;
+    case 2:
+      set_attribute( faint, value );
+      break;
     case 22:
       set_attribute( bold, value );
+      set_attribute( faint, value );
       break;
     case 3:
     case 23:
@@ -514,6 +520,10 @@ void Renditions::set_rendition( color_type num )
     case 8:
     case 28:
       set_attribute( invisible, value );
+      break;
+    case 9:
+    case 29:
+      set_attribute( strikethrough, value );
       break;
     default:
       break; /* ignore unknown rendition */
@@ -546,6 +556,8 @@ std::string Renditions::sgr( void ) const
   ret.append( "\033[0" );
   if ( get_attribute( bold ) )
     ret.append( ";1" );
+  if ( get_attribute( faint ) )
+    ret.append( ";2" );
   if ( get_attribute( italic ) )
     ret.append( ";3" );
   if ( get_attribute( underlined ) )
@@ -556,6 +568,8 @@ std::string Renditions::sgr( void ) const
     ret.append( ";7" );
   if ( get_attribute( invisible ) )
     ret.append( ";8" );
+  if ( get_attribute( strikethrough ) )
+    ret.append( ";9" );
 
   if ( foreground_color ) {
     // Since foreground_color is a 25-bit field, it is promoted to an int when
