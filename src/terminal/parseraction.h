@@ -170,6 +170,24 @@ public:
 
   bool operator==( const Resize& other ) const { return ( width == other.width ) && ( height == other.height ); }
 };
+
+class TerminalColors : public Action
+{
+  /* client-provided terminal default colors -- not part of the host-source state machine */
+public:
+  std::string foreground;
+  std::string background;
+
+  std::string name( void ) { return std::string( "TerminalColors" ); }
+  void act_on_terminal( Terminal::Emulator* emu ) const;
+
+  TerminalColors( const std::string& s_fg, const std::string& s_bg ) : foreground( s_fg ), background( s_bg ) {}
+
+  bool operator==( const TerminalColors& other ) const
+  {
+    return ( foreground == other.foreground ) && ( background == other.background );
+  }
+};
 }
 
 #endif

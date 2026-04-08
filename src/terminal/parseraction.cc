@@ -88,6 +88,7 @@ void OSC_End::act_on_terminal( Terminal::Emulator* emu ) const
   emu->OSC_end( this );
 }
 
+
 void UserByte::act_on_terminal( Terminal::Emulator* emu ) const
 {
   emu->dispatch.terminal_to_host.append( emu->user.input( this, emu->fb.ds.application_mode_cursor_keys ) );
@@ -96,4 +97,9 @@ void UserByte::act_on_terminal( Terminal::Emulator* emu ) const
 void Resize::act_on_terminal( Terminal::Emulator* emu ) const
 {
   emu->resize( width, height );
+}
+
+void TerminalColors::act_on_terminal( Terminal::Emulator* emu ) const
+{
+  emu->set_terminal_colors( foreground, background );
 }
