@@ -6,10 +6,14 @@ Mosh: the mobile shell
 Fork note
 ---------
 
-This fork differs from the upstream release `mosh` in three main ways:
+This fork differs from the upstream release `mosh` in the following ways:
 
+- OSC 10/11 color query support (dark/light theme detection for vim, neovim, tmux, delta, bat)
+- OSC 8 hyperlink support
 - ECMA-48 `SGR 2` (`faint` / `dim`) support
 - ECMA-48 `SGR 9` (`strikethrough`) support
+- Cursor shape support, integrated from
+  `mobile-shell/mosh#1355`
 - SSH agent forwarding support, integrated from
   `mobile-shell/mosh#1297`
 
@@ -18,8 +22,8 @@ Install
 A simple way to install it on macOS or Linux is via the Homebrew tap:
 ```sh
 brew uninstall mosh
-brew tap antonme/mosh
-brew install antonme/mosh/mosh-dim
+brew tap antonme/tap
+brew install antonme/tap/mosh
 ```
 
 Original description
@@ -77,27 +81,6 @@ Other features
 
    * Mosh leverages SSH to set up the connection and authenticate
      users. Mosh does not contain any privileged (root) code.
-
-Fork additions
---------------
-
-This fork ([antonme/mosh](https://github.com/antonme/mosh)) includes the
-following changes on top of upstream mosh 1.4.0:
-
-   * **OSC 10/11 color query support.** Applications like vim, neovim, tmux,
-     delta, and bat query the terminal's foreground and background colors to
-     detect dark/light theme. Upstream mosh drops these queries. This fork
-     adds query support: the client probes the real terminal at startup and
-     the server answers `OSC 10;?` / `OSC 11;?` on behalf of applications.
-     (Fixes [#1145](https://github.com/mobile-shell/mosh/issues/1145),
-     [#1351](https://github.com/mobile-shell/mosh/issues/1351))
-
-   * **OSC 8 hyperlink support.** Clickable hyperlinks in terminal output
-     are preserved through mosh sessions.
-
-Install from Homebrew tap:
-
-    brew install antonme/tap/mosh
 
 Getting Mosh
 ------------
